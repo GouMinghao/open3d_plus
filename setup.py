@@ -4,7 +4,7 @@ import os
 
 setup(
     name='open3d_plus',
-    version='0.0.0',
+    version='0.0.1',
     description='open3d plus functions',
     author='Minghao Gou',
     author_email='gouminghao@gmail.com',
