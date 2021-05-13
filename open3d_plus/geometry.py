@@ -1,5 +1,6 @@
 import open3d as o3d
 import numpy as np
+from PIL import Image
 
 def array2pcd(points, colors):
     """
@@ -51,3 +52,37 @@ def merge_pcds(pcds):
         old_points = np.concatenate((old_points, points))
         old_colors = np.concatenate((old_colors, colors)) 
     return array2pcd(old_points, old_colors)
+
+def generate_scene_pointcloud(depth_path, rgb_path, intrinsics, depth_scale):
+    '''Generate point cloud from depth image and color image
+    
+    Args:
+        depth_path(str): depth image path.
+        rgb_path(str): rgb image path.
+        intrinsics(np.array): camera intrinsics matrix.
+        depth_scale(float): the depth factor.
+    Returns:
+        open3d.geometry.PointCloud: the point cloud
+    '''
+    colors = np.array(Image.open(rgb_path), dtype=np.float32) / 255.0
+    depths = np.array(Image.open(depth_path))
+    fx, fy = intrinsics[0,0], intrinsics[1,1]
+    cx, cy = intrinsics[0,2], intrinsics[1,2]
+    
+    xmap, ymap = np.arange(colors.shape[1]), np.arange(colors.shape[0])
+    xmap, ymap = np.meshgrid(xmap, ymap)
+
+    points_z = depths / depth_scale
+    points_x = (xmap - cx) / fx * points_z
+    points_y = (ymap - cy) / fy * points_z
+
+    mask = (points_z > 0)
+    points = np.stack([points_x, points_y, points_z], axis=-1)
+    points = points[mask]
+    colors = colors[mask]
+
+    cloud = o3d.geometry.PointCloud()
+    cloud.points = o3d.utility.Vector3dVector(points)
+    cloud.colors = o3d.utility.Vector3dVector(colors)
+
+    return cloud
