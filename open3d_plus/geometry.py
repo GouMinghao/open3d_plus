@@ -53,19 +53,29 @@ def merge_pcds(pcds):
         old_colors = np.concatenate((old_colors, colors)) 
     return array2pcd(old_points, old_colors)
 
-def generate_scene_pointcloud(depth_path, rgb_path, intrinsics, depth_scale):
+def generate_scene_pointcloud(depth, rgb, intrinsics, depth_scale):
     '''Generate point cloud from depth image and color image
     
     Args:
-        depth_path(str): depth image path.
-        rgb_path(str): rgb image path.
-        intrinsics(np.array): camera intrinsics matrix.
-        depth_scale(float): the depth factor.
+        depth(str / np.array): Depth image path or depth.
+        rgb(str / np.array): RGB image path or RGB values.
+        intrinsics(np.array): Camera intrinsics matrix.
+        depth_scale(float): The depth factor.
+
     Returns:
         open3d.geometry.PointCloud: the point cloud
     '''
-    colors = np.array(Image.open(rgb_path), dtype=np.float32) / 255.0
-    depths = np.array(Image.open(depth_path))
+    if type(depth) == str and type(rgb) == str:
+        colors = np.array(Image.open(rgb), dtype=np.float32) / 255.0
+        depths = np.array(Image.open(depth))
+    
+    elif type(depth) == np.ndarray and type(rgb) == np.ndarray:
+        colors = rgb
+        depths = depth
+    
+    else:
+        raise ValueError('The type of depth and rgb must be str or np.ndarray')
+    
     fx, fy = intrinsics[0,0], intrinsics[1,1]
     cx, cy = intrinsics[0,2], intrinsics[1,2]
     
