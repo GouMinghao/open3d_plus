@@ -92,7 +92,10 @@ def generate_scene_pointcloud(depth, rgb, intrinsics, depth_scale, use_mask = Tr
     if use_mask:
         points = points[mask]
         colors = colors[mask]
-
+    else:
+        points = points.reshape((-1, 3))
+        colors = colors.reshape((-1, 3))
+    print(points)
     cloud = o3d.geometry.PointCloud()
     cloud.points = o3d.utility.Vector3dVector(points)
     cloud.colors = o3d.utility.Vector3dVector(colors)
