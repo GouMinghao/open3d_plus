@@ -53,7 +53,7 @@ def merge_pcds(pcds):
         old_colors = np.concatenate((old_colors, colors)) 
     return array2pcd(old_points, old_colors)
 
-def generate_scene_pointcloud(depth, rgb, intrinsics, depth_scale):
+def generate_scene_pointcloud(depth, rgb, intrinsics, depth_scale, use_mask = True):
     '''Generate point cloud from depth image and color image
     
     Args:
@@ -61,6 +61,7 @@ def generate_scene_pointcloud(depth, rgb, intrinsics, depth_scale):
         rgb(str / np.array): RGB image path or RGB values.
         intrinsics(np.array): Camera intrinsics matrix.
         depth_scale(float): The depth factor.
+        use_mask(bool): Whether to use mask for pointcloud.
 
     Returns:
         open3d.geometry.PointCloud: the point cloud
@@ -88,8 +89,9 @@ def generate_scene_pointcloud(depth, rgb, intrinsics, depth_scale):
 
     mask = (points_z > 0)
     points = np.stack([points_x, points_y, points_z], axis=-1)
-    points = points[mask]
-    colors = colors[mask]
+    if use_mask:
+        points = points[mask]
+        colors = colors[mask]
 
     cloud = o3d.geometry.PointCloud()
     cloud.points = o3d.utility.Vector3dVector(points)
