@@ -1,22 +1,24 @@
 import open3d as o3d
 import numpy as np
 from PIL import Image
+from typing import Union
 
 
-def array2pcd(points, colors):
+def array2pcd(points: np.ndarray, colors: Union[None, np.ndarray] = None):
     """
     Convert points and colors into open3d point cloud.
 
     Args:
-        points(np.array): coordinates of the points.
-        colors(np.array): RGB values of the points.
+        points(np.ndarray): coordinates of the points.
+        colors(np.ndarray): RGB values of the points.
 
     Returns:
         open3d.geometry.PointCloud: the point cloud.
     """
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(points)
-    pcd.colors = o3d.utility.Vector3dVector(colors)
+    if colors is not None:
+        pcd.colors = o3d.utility.Vector3dVector(colors)
     return pcd
 
 
@@ -27,7 +29,6 @@ def pcd2array(pcd):
     Args:
         pcd(open3d.geometry.PointCloud): the point cloud.
 
-
     Returns:
         np.array, np.array: coordinates of the points, RGB values of the points.
     """
@@ -36,12 +37,13 @@ def pcd2array(pcd):
     return points, colors
 
 
-def merge_pcds(pcds):
+def merge_pcds(pcds, merge_color: bool = True):
     """
     Merge several point cloud into a single one.
 
     Args:
         pcds(list): list of point cloud.
+        merge_color(bool): if merge color
 
     Returns:
         open3d.geometry.PointCloud: the merged point cloud.
@@ -49,12 +51,21 @@ def merge_pcds(pcds):
     ret_pcd = o3d.geometry.PointCloud()
     if len(pcds) == 0:
         return ret_pcd
-    old_points, old_colors = pcd2array(pcds[0])
-    for i in range(1, len(pcds)):
-        points, colors = pcd2array(pcds[i])
-        old_points = np.concatenate((old_points, points))
-        old_colors = np.concatenate((old_colors, colors))
-    return array2pcd(old_points, old_colors)
+    points_list = []
+    if merge_color:
+        colors_list = []
+    for pcd in pcds:
+        points = np.asarray(pcd.points)
+        points_list.append(points)
+        if merge_color:
+            colors = np.asarray(pcd.colors)
+            colors_list.append(colors)
+    merge_points = np.vstack(points_list)
+    if merge_color:
+        merge_colors = np.vstack(colors_list)
+        return array2pcd(merge_points, merge_colors)
+    else:
+        return array2pcd(merge_points)
 
 
 def generate_scene_pointcloud(depth, rgb, intrinsics, depth_scale, use_mask=True):
