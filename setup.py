@@ -10,9 +10,5 @@ setup(
     author_email="gouminghao@gmail.com",
     url="",
     packages=find_packages(),
-    install_requires=[
-        "numpy",
-        "open3d>=0.8.0.0",
-        "opencv-python",
-    ],
+    install_requires=["numpy", "open3d", "opencv-python", "matplotlib"],
 )
