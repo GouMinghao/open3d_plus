@@ -8,6 +8,9 @@ try:
 
     if torch.cuda.is_available():
         USE_TORCH_CUDA = True
+    else:
+        print("torch cuda not avaliable")
+        USE_TORCH_CUDA = False
 except:
     print("torch cuda not avaliable")
     USE_TORCH_CUDA = False
@@ -90,7 +93,7 @@ def render_pointcloud_torch(
     num_pts = points.shape[0]
     # transform points to camera frame
     camera_points = torch.matmul(
-        torch.linalg.inv(torch.from_numpy(pinhole_camera_param.extrinsic).cuda()),
+        torch.linalg.inv(torch.tensor(pinhole_camera_param.extrinsic).cuda()),
         torch.hstack((points, torch.ones((num_pts, 1), dtype=points.dtype).cuda())).T,
     ).T[:, :3]
     valid_mask = camera_points[:, 2] > 0
