@@ -174,3 +174,28 @@ def render_pointcloud_numpy(
     all_uvs[:, 1] = np.clip(all_uvs[:, 1], 0, intrin.height - 1)
     vis[all_uvs[:, 1], all_uvs[:, 0]] = all_colors
     return vis
+
+def render_pcd_around_axis(
+    pcd: o3d.geometry.PointCloud,
+    pinhole_camera_param: o3d.camera.PinholeCameraParameters,
+    axis: str,
+    var: float = 2,
+    num_views: int = 120,
+    view_angle = 30,
+):
+    assert axis in ["x+", "x-", "y+", "y-", "z+", "z-"]
+    points = np.asarray(pcd.points)
+    Ts = np.zeros((num_views, 4, 4), dtype=np.float64)
+    Ts[:, 3, 3] = 1
+    view_angle_rad = view_angle / 180.0 * np.pi
+    if axis in ["z-", "z+"]:
+        dists = np.linalg.norm(points[:, [0, 1]], axis = 1)
+    elif axis in ["x-", "x+"]:
+        dists = np.linalg.norm(points[:, [1, 2]], axis = 1)
+    elif axis in ["y-", "y+"]:
+        dists = np.linalg.norm(points[:, [0, 2]], axis = 1)
+    mean_dist = np.mean(dists)
+    stdvar_dist = np.sqrt(np.var(dists))
+    view_radius = mean_dist + stdvar_dist * var
+    view_height = view_radius * np.tan(view_angle_rad)
+    rot_angles = 2 * np.pi / num_views * np.arange(num_views)
