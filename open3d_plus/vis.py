@@ -9,10 +9,10 @@ try:
     if torch.cuda.is_available():
         USE_TORCH_CUDA = True
     else:
-        print("torch cuda not avaliable")
+        print("[Open3dPlus]: torch cuda not available")
         USE_TORCH_CUDA = False
 except:
-    print("torch cuda not avaliable")
+    print("[Open3dPlus]: torch cuda not available")
     USE_TORCH_CUDA = False
 
 
@@ -93,7 +93,7 @@ def render_pointcloud_torch(
     num_pts = points.shape[0]
     # transform points to camera frame
     camera_points = torch.matmul(
-        torch.linalg.inv(torch.tensor(pinhole_camera_param.extrinsic).cuda()),
+        torch.tensor(pinhole_camera_param.extrinsic).cuda(),
         torch.hstack((points, torch.ones((num_pts, 1), dtype=points.dtype).cuda())).T,
     ).T[:, :3]
     valid_mask = camera_points[:, 2] > 0
@@ -152,7 +152,7 @@ def render_pointcloud_numpy(
     num_pts = points.shape[0]
     # transform points to camera frame
     camera_points = np.matmul(
-        np.linalg.inv(pinhole_camera_param.extrinsic), np.hstack((points, np.ones((num_pts, 1), dtype=points.dtype))).T
+        pinhole_camera_param.extrinsic, np.hstack((points, np.ones((num_pts, 1), dtype=points.dtype))).T
     ).T[:, :3]
     valid_mask = camera_points[:, 2] > 0
     valid_pts = camera_points[valid_mask]
@@ -175,27 +175,103 @@ def render_pointcloud_numpy(
     vis[all_uvs[:, 1], all_uvs[:, 0]] = all_colors
     return vis
 
+
+def generate_views(axis: str, num_views: int, view_radius: float, view_height: float):
+    Ts = np.zeros((num_views, 4, 4), dtype=np.float64)  # (n, 4, 4)
+    Ts[:, 3, 3] = 1
+    rot_angles = 2 * np.pi / num_views * (np.arange(num_views, dtype=np.float64) - 0.5)  # avoid sin(theta) == 0
+    if axis in ["z+", "z-"]:
+        if axis == "z+":
+            trans_z = view_height * np.ones(num_views)
+        else:
+            trans_z = -view_height * np.ones(num_views)
+        Ts[:, :3, 3] = np.vstack(
+            (
+                view_radius * np.cos(rot_angles),
+                view_radius * np.sin(rot_angles),
+                trans_z,
+            )
+        ).T  # (n, 3)
+        proj = np.vstack(
+            (
+                np.cos(rot_angles),
+                np.sin(rot_angles),
+                np.zeros(num_views),
+            )
+        ).T  # (n, 3)
+    elif axis in ["x+", "x-"]:
+        if axis == "x+":
+            trans_x = view_height * np.ones(num_views)
+        else:
+            trans_x = -view_height * np.ones(num_views)
+        Ts[:, :3, 3] = np.vstack(
+            (
+                trans_x,
+                view_radius * np.cos(rot_angles),
+                view_radius * np.sin(rot_angles),
+            )
+        ).T  # (n, 3)
+        proj = np.vstack(
+            (
+                np.zeros(num_views),
+                np.cos(rot_angles),
+                np.sin(rot_angles),
+            )
+        ).T  # (n, 3)
+    elif axis in ["y+", "y-"]:
+        if axis == "y+":
+            trans_y = view_height * np.ones(num_views)
+        else:
+            trans_y = -view_height * np.ones(num_views)
+        Ts[:, :3, 3] = np.vstack(
+            (
+                view_radius * np.cos(rot_angles),
+                trans_y,
+                view_radius * np.sin(rot_angles),
+            )
+        ).T  # (n, 3)
+        proj = np.vstack(
+            (
+                np.cos(rot_angles),
+                np.zeros(num_views),
+                np.sin(rot_angles),
+            )
+        ).T  # (n, 3)
+    Ts[:, :3, 2] = -Ts[:, :3, 3]  # rot_z (n, 3)
+    Ts[:, :3, 2] = Ts[:, :3, 2] / np.sqrt(view_height**2 + view_radius**2)
+    Ts[:, :3, 0] = np.cross(proj, Ts[:, :3, 2])
+    Ts[:, :3, 0] = Ts[:, :3, 0] / np.tile(np.linalg.norm(Ts[:, :3, 0], axis=1), (3, 1)).T
+    Ts[:, :3, 1] = np.cross(Ts[:, :3, 2], Ts[:, :3, 0])
+    return Ts
+
+
 def render_pcd_around_axis(
     pcd: o3d.geometry.PointCloud,
-    pinhole_camera_param: o3d.camera.PinholeCameraParameters,
+    intrinsic: o3d.camera.PinholeCameraIntrinsic,
     axis: str,
     var: float = 2,
     num_views: int = 120,
-    view_angle = 30,
+    view_angle=30,
 ):
     assert axis in ["x+", "x-", "y+", "y-", "z+", "z-"]
     points = np.asarray(pcd.points)
-    Ts = np.zeros((num_views, 4, 4), dtype=np.float64)
-    Ts[:, 3, 3] = 1
     view_angle_rad = view_angle / 180.0 * np.pi
     if axis in ["z-", "z+"]:
-        dists = np.linalg.norm(points[:, [0, 1]], axis = 1)
+        dists = np.linalg.norm(points[:, [0, 1]], axis=1)
     elif axis in ["x-", "x+"]:
-        dists = np.linalg.norm(points[:, [1, 2]], axis = 1)
+        dists = np.linalg.norm(points[:, [1, 2]], axis=1)
     elif axis in ["y-", "y+"]:
-        dists = np.linalg.norm(points[:, [0, 2]], axis = 1)
+        dists = np.linalg.norm(points[:, [0, 2]], axis=1)
     mean_dist = np.mean(dists)
     stdvar_dist = np.sqrt(np.var(dists))
     view_radius = mean_dist + stdvar_dist * var
     view_height = view_radius * np.tan(view_angle_rad)
-    rot_angles = 2 * np.pi / num_views * np.arange(num_views)
+    Ts = generate_views(axis, num_views=num_views, view_radius=view_radius, view_height=view_height)
+    pinhole_camera_param = o3d.camera.PinholeCameraParameters()
+    pinhole_camera_param.intrinsic = intrinsic
+    vis_list = []
+    for i in range(len(Ts)):
+        pinhole_camera_param.extrinsic = np.linalg.inv(Ts[i])
+        vis = render_o3d_pointcloud(pcd, pinhole_camera_param=pinhole_camera_param, use_gpu=True)
+        vis_list.append(vis)
+    return vis_list
