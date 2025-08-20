@@ -1,21 +1,38 @@
-from pathlib import Path
-from typing import Union
 import cv2
+import time
 
 import numpy as np
 import torch
 import open3d as o3d
 
-from open3d_plus import render_pointcloud_torch, render_pointcloud_numpy, paint_pcd_by_axis, render_o3d_pointcloud
+from open3d_plus import (
+    render_pointcloud_torch,
+    render_pointcloud_numpy,
+    paint_pcd_by_axis,
+    render_o3d_pointcloud,
+    render_pcd_around_axis,
+)
 
-if __name__ == "__main__":
-    import time
 
+def test_render_views():
+    world = o3d.geometry.TriangleMesh.create_coordinate_frame(10)
+    pcd = o3d.io.read_point_cloud("data/down_color.pcd")
+    pcd.translate(-pcd.get_center())
+    o3d.visualization.draw_geometries([world, pcd])
+    intrinsic = o3d.camera.PinholeCameraIntrinsic(width=1920, height=1080, fx=200, fy=200, cx=959.5, cy=539.5)
+    vis_list = render_pcd_around_axis(pcd, intrinsic, "x-", var=5)
+    for vis in vis_list:
+        cv2.imshow("vis", vis)
+        cv2.waitKey(1)
+    cv2.destroyAllWindows()
+
+
+def test_custom_render():
     pcd = o3d.io.read_point_cloud("data/down_color.pcd")
     points = np.asarray(pcd.points)
     pcd = pcd.translate(-np.mean(points, axis=0))
     intrinsic = o3d.camera.PinholeCameraIntrinsic(fx=500, fy=500, cx=639.9, cy=359.5, width=1280, height=720)
-    extrinsic = np.array(([1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, -10], [0, 0, 0, 1]), dtype=np.float64)
+    extrinsic = np.linalg.inv(np.array(([1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, -10], [0, 0, 0, 1]), dtype=np.float64))
     pinhole_camera_param = o3d.camera.PinholeCameraParameters()
     pinhole_camera_param.intrinsic = intrinsic
     pinhole_camera_param.extrinsic = extrinsic
@@ -53,3 +70,8 @@ if __name__ == "__main__":
     cv2.imwrite("vis_gpu.png", vis_gpu)
     cv2.imwrite("vis_o3d_gpu.png", vis_o3d_gpu)
     cv2.imwrite("vis_o3d_cpu.png", vis_o3d_cpu)
+
+
+if __name__ == "__main__":
+    # test_custom_render()
+    test_render_views()
