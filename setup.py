@@ -3,7 +3,7 @@ from setuptools import find_packages
 
 setup(
     name="open3d_plus",
-    version="0.3.2",
+    version="0.3.3",
     description="open3d plus functions",
     author="Minghao Gou",
     author_email="gouminghao@gmail.com",

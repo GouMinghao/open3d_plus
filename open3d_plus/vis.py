@@ -114,8 +114,11 @@ def render_pointcloud_torch(
     all_uvs = (
         torch.einsum("ij,k->ikj", uvs, torch.ones(grid_size**2, dtype=torch.int64).cuda()) + meshgrids
     ).reshape((-1, 2))
-    all_uvs[:, 0] = torch.clip(all_uvs[:, 0], 0, intrin.width - 1)
-    all_uvs[:, 1] = torch.clip(all_uvs[:, 1], 0, intrin.height - 1)
+    valid_masd = (
+        (all_uvs[:, 0] >= 0) & (all_uvs[:, 0] < intrin.width) & (all_uvs[:, 1] >= 0) & (all_uvs[:, 1] < intrin.height)
+    )
+    all_uvs = all_uvs[valid_masd]
+    all_colors = all_colors[valid_masd]
     vis[all_uvs[:, 1], all_uvs[:, 0]] = all_colors
     return vis.cpu().numpy()
 
@@ -170,13 +173,27 @@ def render_pointcloud_numpy(
         np.einsum("ij,k->ikj", uvs, np.ones(grid_size**2, dtype=int))
         + np.array(np.meshgrid(offsets, offsets)).T.reshape(-1, 2)
     ).reshape((-1, 2))
-    all_uvs[:, 0] = np.clip(all_uvs[:, 0], 0, intrin.width - 1)
-    all_uvs[:, 1] = np.clip(all_uvs[:, 1], 0, intrin.height - 1)
+    valid_masd = (
+        (all_uvs[:, 0] >= 0) & (all_uvs[:, 0] < intrin.width) & (all_uvs[:, 1] >= 0) & (all_uvs[:, 1] < intrin.height)
+    )
+    all_uvs = all_uvs[valid_masd]
+    all_colors = all_colors[valid_masd]
     vis[all_uvs[:, 1], all_uvs[:, 0]] = all_colors
     return vis
 
 
-def generate_views(axis: str, num_views: int, view_radius: float, view_height: float):
+def generate_views(axis: str, num_views: int, view_radius: float, view_height: float) -> np.ndarray:
+    """generate camera extrinsic matrices
+
+    Args:
+        axis (str): surround direction
+        num_views (int): number of views to generate
+        view_radius (float): radius of the circle
+        view_height (float): height of the circle
+
+    Returns:
+        np.ndarray: [n, 4, 4] of the extrinsics
+    """
     Ts = np.zeros((num_views, 4, 4), dtype=np.float64)  # (n, 4, 4)
     Ts[:, 3, 3] = 1
     rot_angles = 2 * np.pi / num_views * (np.arange(num_views, dtype=np.float64) - 0.5)  # avoid sin(theta) == 0
@@ -251,7 +268,8 @@ def render_pcd_around_axis(
     axis: str,
     var: float = 2,
     num_views: int = 120,
-    view_angle=30,
+    view_angle: float = 30,
+    use_gpu: bool = True,
 ):
     assert axis in ["x+", "x-", "y+", "y-", "z+", "z-"]
     points = np.asarray(pcd.points)
@@ -272,6 +290,6 @@ def render_pcd_around_axis(
     vis_list = []
     for i in range(len(Ts)):
         pinhole_camera_param.extrinsic = np.linalg.inv(Ts[i])
-        vis = render_o3d_pointcloud(pcd, pinhole_camera_param=pinhole_camera_param, use_gpu=True)
+        vis = render_o3d_pointcloud(pcd, pinhole_camera_param=pinhole_camera_param, use_gpu=use_gpu)
         vis_list.append(vis)
     return vis_list

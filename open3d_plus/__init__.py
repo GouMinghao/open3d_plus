@@ -7,7 +7,7 @@ from .vis import (
     render_pcd_around_axis,
 )
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 
 __all__ = [
     "array2pcd",
